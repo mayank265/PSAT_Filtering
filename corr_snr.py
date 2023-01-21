@@ -1,15 +1,24 @@
-from matplotlib import pyplot as plt
 import csv
 
 
 def Replace(Data, BaseColumns, Columns, THRESHOLD):
-    PREV = -1
     for i in range(1, len(Data) - 1):
         modify_row = False
         for j in BaseColumns:
             if Data[i][j] < THRESHOLD:
                 modify_row = True
         if modify_row:
+            for j in Columns:
+                Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
+
+
+def Replace_AVG(Data, BaseColumns, Columns, THRESHOLD):
+    for i in range(1, len(Data) - 1):
+        AVG = 0
+        for j in BaseColumns:
+            AVG += Data[i][j]
+        AVG /= len(BaseColumns)
+        if AVG < THRESHOLD:
             for j in Columns:
                 Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
 
@@ -22,9 +31,17 @@ def Replace_CORR(Data, THRESHOLD):
     Replace(Data, [15, 16, 17], [3, 4, 5], THRESHOLD)
 
 
+def Replace_AVG_SNR(Data, THRESHOLD):
+    Replace(Data, [11, 12, 13], [3, 4, 5], THRESHOLD)
+
+
+def Replace_AVG_CORR(Data, THRESHOLD):
+    Replace(Data, [15, 16, 17], [3, 4, 5], THRESHOLD)
+
+
 def main():
 
-    SNR_THRESHOLD = 15
+    SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
 
     # with open('Data.csv', 'r') as f:
@@ -45,8 +62,9 @@ def main():
         Choose your choice:
 
         1) Minimum SNR
-
         2) Minimum Corr
+        3) Average SNR
+        4) Average Corr
 
         Choose (1) or (2):
         """
@@ -58,6 +76,14 @@ def main():
     elif choice == "2":
         Replace_CORR(Data, CORR_THRESHOLD)
         filename1 = FILE[:-4] + "Filtered_" + f"Min_Correlation_{CORR_THRESHOLD}.csv"
+    elif choice == "3":
+        Replace_AVG_SNR(Data, SNR_THRESHOLD)
+        filename1 = FILE[:-4] + "Filtered_" + f"Average_SNR_{SNR_THRESHOLD}.csv"
+    elif choice == "4":
+        Replace_AVG_CORR(Data, CORR_THRESHOLD)
+        filename1 = (
+            FILE[:-4] + "Filtered_" + f"Average_Correlation_{CORR_THRESHOLD}.csv"
+        )
 
     COLUMNS = [0, 3, 4, 5]
     with open(filename1, "w", newline="") as f:
