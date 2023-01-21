@@ -39,6 +39,69 @@ def Replace_AVG_CORR(Data, THRESHOLD):
     Replace(Data, [15, 16, 17], [3, 4, 5], THRESHOLD)
 
 
+def Replace_CORR_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD):
+    for i in range(1, len(Data) - 1):
+        CORR_violated, SNR_violated = False, False
+        for j in [15, 16, 17]:
+            if Data[i][j] < CORR_THRESHOLD:
+                CORR_violated = True
+        for j in [11, 12, 13]:
+            if Data[i][j] < SNR_THRESHOLD:
+                SNR_violated = True
+
+        if CORR_violated and SNR_violated:
+            for j in [3, 4, 5]:
+                Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
+
+
+def Replace_CORR_AVG_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD):
+    for i in range(1, len(Data) - 1):
+        CORR_violated = False
+        for j in [15, 16, 17]:
+            if Data[i][j] < CORR_THRESHOLD:
+                CORR_violated = True
+        AVG_SNR = 0
+        for j in [11, 12, 13]:
+            AVG_SNR += Data[i][j]
+        AVG_SNR /= 3
+
+        if CORR_violated and (AVG_SNR < SNR_THRESHOLD):
+            for j in [3, 4, 5]:
+                Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
+
+
+def Replace_AVG_CORR_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD):
+    for i in range(1, len(Data) - 1):
+        SNR_violated = False
+        AVG_CORR = 0
+        for j in [15, 16, 17]:
+            AVG_CORR += Data[i][j]
+        AVG_CORR /= 3
+
+        for j in [11, 12, 13]:
+            if Data[i][j] < SNR_THRESHOLD:
+                SNR_violated = True
+
+        if AVG_CORR < CORR_THRESHOLD and SNR_violated:
+            for j in [3, 4, 5]:
+                Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
+
+
+def Replace_AVG_CORR_AVG_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD):
+    for i in range(1, len(Data) - 1):
+        AVG_CORR = 0
+        for j in [15, 16, 17]:
+            AVG_CORR += Data[i][j]
+        AVG_CORR /= 3
+        AVG_SNR = 0
+        for j in [11, 12, 13]:
+            AVG_SNR += Data[i][j]
+        AVG_SNR /= 3
+        if AVG_CORR < CORR_THRESHOLD and AVG_SNR < SNR_THRESHOLD:
+            for j in [3, 4, 5]:
+                Data[i][j] = round((Data[i - 1][j] + Data[i + 1][j]) / 2, 5)
+
+
 def main():
 
     SNR_THRESHOLD = 20
@@ -62,9 +125,13 @@ def main():
         Choose your choice:
 
         1) Minimum SNR
-        2) Minimum Corr
+        2) Minimum Correlation
         3) Average SNR
-        4) Average Corr
+        4) Average Correlation
+        5) Min Correlation & Min SNR
+        6) Min Correlation & Average SNR
+        7) Average Correlation & Min SNR
+        8) Average Correlation & Average SNR
 
         Choose (1) or (2):
         """
@@ -83,6 +150,34 @@ def main():
         Replace_AVG_CORR(Data, CORR_THRESHOLD)
         filename1 = (
             FILE[:-4] + "Filtered_" + f"Average_Correlation_{CORR_THRESHOLD}.csv"
+        )
+    elif choice == "5":
+        Replace_CORR_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD)
+        filename1 = (
+            FILE[:-4]
+            + "Filtered_"
+            + f"Min_Correlation{CORR_THRESHOLD}_Min_SNR{SNR_THRESHOLD}.csv"
+        )
+    elif choice == "6":
+        Replace_CORR_AVG_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD)
+        filename1 = (
+            FILE[:-4]
+            + "Filtered_"
+            + f"Min_Correlation{CORR_THRESHOLD}_Average_SNR{SNR_THRESHOLD}.csv"
+        )
+    elif choice == "7":
+        Replace_AVG_CORR_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD)
+        filename1 = (
+            FILE[:-4]
+            + "Filtered_"
+            + f"Average_Correlation{CORR_THRESHOLD}_Min_SNR{SNR_THRESHOLD}.csv"
+        )
+    elif choice == "8":
+        Replace_AVG_CORR_AVG_SNR(Data, CORR_THRESHOLD, SNR_THRESHOLD)
+        filename1 = (
+            FILE[:-4]
+            + "Filtered_"
+            + f"Average_Correlation{CORR_THRESHOLD}_Average_SNR{SNR_THRESHOLD}.csv"
         )
 
     COLUMNS = [0, 3, 4, 5]
