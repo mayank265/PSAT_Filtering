@@ -1,0 +1,17 @@
+2.9-50-values-min-corr-outlier
+
+9th Approach:
+Name: Velocity Threshold Approach 1 Normal Sum
+
+https://youtu.be/Y0gVWFrb-HY
+
+Appaji PSAT Filtering Help Part 4 Velocity Threshold Approach 1 Normal Sum
+
+ 
+
+10th Approach:
+Name: Velocity Threshold Approach 2 Absolute Value
+
+https://youtu.be/2deShByRl-8
+
+Appaji PSAT Filtering Help Part 5 Velocity Threshold Approach 2 Absolute Value
