@@ -1,6 +1,7 @@
 from copy import deepcopy
 import csv
 import numpy as np
+from datetime import datetime
 
 
 class DetectSpikes:
@@ -204,8 +205,9 @@ def write_to_file(
         for row in Data:
             row_data = []
             for j in COLS:
-                row_data.append(row[j])
+                row_data.append(row[j] * 100)
             writer.writerow(row_data)
+    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
     print(f"written to {filename}")
 
 
