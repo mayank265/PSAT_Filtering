@@ -2,6 +2,7 @@ from copy import deepcopy
 import csv
 import numpy as np
 from datetime import datetime
+from statistics import stdev
 
 
 class DetectSpikes:
@@ -10,14 +11,25 @@ class DetectSpikes:
         Data,
         CORR_THRESHOLD,
         SNR_THRESHOLD,
+        VELOCITY_MULTIPLIER,
         CORR_COLS=[15, 16, 17],
         SNR_COLS=[11, 12, 13],
+        VELOCITY_COLS=[3, 4, 5],
     ) -> None:
         self.CORR_THRESHOLD = CORR_THRESHOLD
         self.SNR_THRESHOLD = SNR_THRESHOLD
+        self.VELOCITY_MULTIPLIER = VELOCITY_MULTIPLIER
         self.Data = Data
         self.CORR_COLS = CORR_COLS
         self.SNR_COLS = SNR_COLS
+        self.VELOCITY_COLS = VELOCITY_COLS
+
+        self.STD_DEV = {}  # calculating stdev for velocity cols is enough for now
+        for col in VELOCITY_COLS:
+            data = []
+            for row in self.Data:
+                data.append(row[col])
+            self.STD_DEV[col] = stdev(data)
 
         self.detection_methods = [
             self.minimum_CORR,
@@ -28,6 +40,7 @@ class DetectSpikes:
             self.min_CORR_avg_SNR,
             self.avg_CORR_min_SNR,
             self.avg_CORR_avg_SNR,
+            self.velocity_threshold,
         ]
 
     def check_threshold(self, row, cols, threshold):
@@ -41,6 +54,15 @@ class DetectSpikes:
             average += row[col]
         average /= len(cols)
         return average < threshold
+
+    def check_velocity_threshold(self, row, multiplier):
+        normal_sum = 0
+        stdev_normal_sum = 0
+        for col in self.VELOCITY_COLS:
+            normal_sum += row[col]
+            stdev_normal_sum += self.STD_DEV[col]
+        normal_sum = abs(normal_sum)
+        return abs(normal_sum) > multiplier * abs(stdev_normal_sum)
 
     def detect_and_replace(self, conditions, replacement_method, filename):
         """
@@ -129,6 +151,13 @@ class DetectSpikes:
             ],
             replacement_method,
             f"avg_CORR_{self.CORR_THRESHOLD}_avg_SNR_{self.SNR_THRESHOLD}",
+        )
+
+    def velocity_threshold(self, replacement_method):
+        return self.detect_and_replace(
+            [[self.check_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+            replacement_method,
+            f"v_threshold_{self.VELOCITY_MULTIPLIER}",
         )
 
 
@@ -226,6 +255,7 @@ def main():
 
     SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
+    VELOCITY_MULTIPLIER = 3
     CORR_COLS = [15, 16, 17]
     SNR_COLS = [11, 12, 13]
     RAW_COLS = [3, 4, 5]
@@ -242,13 +272,14 @@ def main():
         5) Min Correlation & Average SNR
         6) Average Correlation & Min SNR
         7) Average Correlation & Average SNR
-        8) All of the above
+        8) Velocity Threshold
+        9) All of the above
 
-        Choose (0) to (8):
+        Choose (0) to (9):
         """
     )
     detection_choice = int(input())
-    if detection_choice < 0 or detection_choice > 8:
+    if detection_choice < 0 or detection_choice > 9:
         return
     print(
         """
@@ -268,8 +299,8 @@ def main():
     if replacement_choice < 0 or replacement_choice > 5:
         return
 
-    if detection_choice == 8 and replacement_choice == 5:
-        for i in range(8):
+    if detection_choice == 9 and replacement_choice == 5:
+        for i in range(9):
             for j in range(5):
                 new_data = deepcopy(Data)
                 detection = DetectSpikes(
@@ -286,8 +317,8 @@ def main():
                     ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
                 )
         return
-    elif detection_choice == 8:
-        for i in range(8):
+    elif detection_choice == 9:
+        for i in range(9):
             new_data = deepcopy(Data)
             detection = DetectSpikes(
                 new_data, CORR_THRESHOLD, SNR_THRESHOLD, CORR_COLS, SNR_COLS
@@ -321,7 +352,9 @@ def main():
             )
         return
 
-    detection = DetectSpikes(Data, CORR_THRESHOLD, SNR_THRESHOLD, CORR_COLS, SNR_COLS)
+    detection = DetectSpikes(
+        Data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
+    )
     replacement = ReplaceSpikes(Data, RAW_COLS)
     filename = detection.detection_methods[detection_choice](
         replacement.replacement_methods[replacement_choice]
