@@ -304,7 +304,7 @@ def main():
             for j in range(5):
                 new_data = deepcopy(Data)
                 detection = DetectSpikes(
-                    new_data, CORR_THRESHOLD, SNR_THRESHOLD, CORR_COLS, SNR_COLS
+                    new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
                 )
                 replacement = ReplaceSpikes(new_data, RAW_COLS)
                 filename = detection.detection_methods[i](
@@ -321,7 +321,7 @@ def main():
         for i in range(9):
             new_data = deepcopy(Data)
             detection = DetectSpikes(
-                new_data, CORR_THRESHOLD, SNR_THRESHOLD, CORR_COLS, SNR_COLS
+                new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
             )
             replacement = ReplaceSpikes(new_data, RAW_COLS)
             filename = detection.detection_methods[i](
@@ -338,7 +338,7 @@ def main():
         for j in range(5):
             new_data = deepcopy(Data)
             detection = DetectSpikes(
-                new_data, CORR_THRESHOLD, SNR_THRESHOLD, CORR_COLS, SNR_COLS
+                new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
             )
             replacement = ReplaceSpikes(new_data, RAW_COLS)
             filename = detection.detection_methods[detection_choice](
