@@ -41,6 +41,7 @@ class DetectSpikes:
             self.avg_CORR_min_SNR,
             self.avg_CORR_avg_SNR,
             self.velocity_threshold,
+            self.abs_velocity_threshold,
         ]
 
     def check_threshold(self, row, cols, threshold):
@@ -63,6 +64,13 @@ class DetectSpikes:
             stdev_normal_sum += self.STD_DEV[col]
         normal_sum = abs(normal_sum)
         return abs(normal_sum) > multiplier * abs(stdev_normal_sum)
+
+    def check_abs_velocity_threshold(self, row, multiplier):
+        spikes = 0
+        for col in self.VELOCITY_COLS:
+            if abs(row[col]) > multiplier * abs(self.STD_DEV[col]):
+                spikes += 1
+        return spikes >= 2
 
     def detect_and_replace(self, conditions, replacement_method, filename):
         """
@@ -158,6 +166,13 @@ class DetectSpikes:
             [[self.check_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
             replacement_method,
             f"v_threshold_{self.VELOCITY_MULTIPLIER}",
+        )
+
+    def abs_velocity_threshold(self, replacement_method):
+        return self.detect_and_replace(
+            [[self.check_abs_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+            replacement_method,
+            f"abs_v_threshold_{self.VELOCITY_MULTIPLIER}",
         )
 
 
@@ -273,13 +288,14 @@ def main():
         6) Average Correlation & Min SNR
         7) Average Correlation & Average SNR
         8) Velocity Threshold
-        9) All of the above
+        9) Absolute Velocity Threshold
+        10) All of the above
 
-        Choose (0) to (9):
+        Choose (0) to (10):
         """
     )
     detection_choice = int(input())
-    if detection_choice < 0 or detection_choice > 9:
+    if detection_choice < 0 or detection_choice > 10:
         return
     print(
         """
@@ -299,12 +315,17 @@ def main():
     if replacement_choice < 0 or replacement_choice > 5:
         return
 
-    if detection_choice == 9 and replacement_choice == 5:
-        for i in range(9):
+    if detection_choice == 10 and replacement_choice == 5:
+        for i in range(10):
             for j in range(5):
                 new_data = deepcopy(Data)
                 detection = DetectSpikes(
-                    new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
+                    new_data,
+                    CORR_THRESHOLD,
+                    SNR_THRESHOLD,
+                    VELOCITY_MULTIPLIER,
+                    CORR_COLS,
+                    SNR_COLS,
                 )
                 replacement = ReplaceSpikes(new_data, RAW_COLS)
                 filename = detection.detection_methods[i](
@@ -317,11 +338,16 @@ def main():
                     ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
                 )
         return
-    elif detection_choice == 9:
-        for i in range(9):
+    elif detection_choice == 10:
+        for i in range(10):
             new_data = deepcopy(Data)
             detection = DetectSpikes(
-                new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
+                new_data,
+                CORR_THRESHOLD,
+                SNR_THRESHOLD,
+                VELOCITY_MULTIPLIER,
+                CORR_COLS,
+                SNR_COLS,
             )
             replacement = ReplaceSpikes(new_data, RAW_COLS)
             filename = detection.detection_methods[i](
@@ -338,7 +364,12 @@ def main():
         for j in range(5):
             new_data = deepcopy(Data)
             detection = DetectSpikes(
-                new_data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
+                new_data,
+                CORR_THRESHOLD,
+                SNR_THRESHOLD,
+                VELOCITY_MULTIPLIER,
+                CORR_COLS,
+                SNR_COLS,
             )
             replacement = ReplaceSpikes(new_data, RAW_COLS)
             filename = detection.detection_methods[detection_choice](
