@@ -252,6 +252,7 @@ def write_to_file(
                 row_data.append(row[j] * 100)
             writer.writerow(row_data)
     filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
+    print(filename)
     print(f"written to {filename}")
 
 
@@ -270,7 +271,7 @@ def main():
 
     SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
-    VELOCITY_MULTIPLIER = 3
+    VELOCITY_MULTIPLIER = 1.5
     CORR_COLS = [15, 16, 17]
     SNR_COLS = [11, 12, 13]
     RAW_COLS = [3, 4, 5]
