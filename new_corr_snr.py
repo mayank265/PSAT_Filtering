@@ -243,6 +243,7 @@ def write_to_file(
 ):
     if filename[:-4] != ".csv":
         filename += ".csv"
+    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(Headers)  # header
@@ -251,8 +252,6 @@ def write_to_file(
             for j in COLS:
                 row_data.append(row[j] * 100)
             writer.writerow(row_data)
-    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
-    print(filename)
     print(f"written to {filename}")
 
 
