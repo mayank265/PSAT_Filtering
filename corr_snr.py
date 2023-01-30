@@ -244,6 +244,7 @@ def write_to_file(
     if filename[:-4] != ".csv":
         filename += ".csv"
     filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
+    filename = "OUTPUT_DIR/" + filename
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(Headers)  # header
