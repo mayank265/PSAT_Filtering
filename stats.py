@@ -1,128 +1,87 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Jan 20 21:59:19 2023
-
-@author: Sanjit
-"""
 import math
 import os
-import ntpath
-import glob
 import pandas as pd
 import numpy as np
 import sys
-import datetime
-from pathlib import Path
 from datetime import datetime
 
 start_time = datetime.now()
-print(start_time.strftime("%c"))
-
-# fileList = open('input_file_list.txt', 'r')
-# files = fileList.readlines()
-# for file in files:
-#     input_filename = file.strip()
-
-#     base = (Path(input_filename).stem.strip())
-#     output_csv = base+".csv"
-
-#     header_list = ['Time','SL' ,'counter' ,'Raw_U','Raw_V','Raw_W','Raw_W1','AMP-U' ,'AMP-V' ,'AMP-W' ,'AMP-W1' ,'SNR_U','SNR_V','SNR_W','SNR-W1' ,'Corr_U','Corr_V','Corr_W','Corr-W1']
-#     dataframe = pd.read_csv(input_filename,delimiter=" +")
-#     dataframe.to_csv(output_csv, encoding='utf-8', header=header_list, index=False)
+# print(start_time.strftime("%c"))
 
 index = 0
-# corr= 70
-# SNR= 15
-# Lambda=1.5
-# k=1.5
 g = 9.81
-# N=input_data['U'].count()
+OUTPUT_PATH = os.path.join("OUTPUT_DIR", "Results_Consolidated_v4.csv")
+data = None
+N = None
 
-if not os.path.isfile("OUTPUT_DIR/Results_Consolidated_v4.csv"):
-    with open(r"OUTPUT_DIR/Results_Consolidated_v4.csv", mode="a") as file_:
-        file_.write(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(
-                start_time.strftime("%c"),
-                "average_velocity_U",
-                "average_velocity_V",
-                "average_velocity_W",
-                "U_variance_Prime",
-                "V_variance_Prime",
-                "W_variance_Prime",
-                "U_stdev_Prime",
-                "V_stdev_Prime",
-                "W_stdev_Prime",
-                "Skewness_U_Prime",
-                "Skewness_V_Prime",
-                "Skewness_W_Prime",
-                "Kurtosis_U_Prime",
-                "Kurtosis_V_Prime",
-                "Kurtosis_W_Prime",
-                "Reynolds_stress_u'v'",
-                "Reynolds_stress_u'w'",
-                "Reynolds_stress_v'w'",
-                "Anisotropy",
-                "M30",
-                "M03",
-                "M12",
-                "M21",
-                "fku_2d",
-                "Fku_2d",
-                "fkw_2d",
-                "Fkw_2d",
-                "fku_3d",
-                "Fku_3d",
-                "fkw_3d",
-                "Fkw_3d",
-                "TKE_3d",
-                "Q1_K_Value",
-                "Q2_K_Value",
-                "Q3_K_Value",
-                "Q4_K_Value",
-                "e",
-                "ED",
-                "Octant_plus_1",
-                "Octant_minus_1",
-                "Octant_plus_2",
-                "Octant_minus_2",
-                "Octant_plus_3",
-                "Octant_minus_3",
-                "Octant_plus_4",
-                "Octant_minus_4",
-                "Total_Octant_sample",
-                "Probability_Octant_plus_1",
-                "Probability_Octant_minus_1",
-                "Probability_Octant_plus_2",
-                "Probability_Octant_minus_2",
-                "Probability_Octant_plus_3",
-                "Probability_Octant_minus_3",
-                "Probability_Octant_plus_4",
-                "Probability_Octant_minus_4",
-                "Min_Octant_Count",
-                "Min_Octant_Count_id",
-                "Max_Octant_Count",
-                "Max_Octant_Count_id",
-                "K",
-                "TI",
-                "\n",
-            )
-        )
-
-
-# def write_timestamp_to_file(name):
-#     # creating the csv writer
-#     # storing current date and time
-#     current_date_time = datetime.now()
-#     print("\nCurrent System Time: ", current_date_time)
-#     file1 = open("Time_Taken_By_Each_Run.csv", "a")  # append mode
-#     file1.write(name + "," + str(current_date_time) + "\n")
-#     file1.close()
-
-
-# def duration_timestamp_to_file(name, duration):
-#     file1 = open("Time_Taken_By_Each_Run.csv", "a")  # append mode
-#     file1.write(name + "," + str(duration) + "\n")
-#     file1.close()
+if not os.path.exists(OUTPUT_PATH):
+    with open(OUTPUT_PATH, mode="a") as f:
+        row = [
+            start_time.strftime("%c"),
+            "average_velocity_U",
+            "average_velocity_V",
+            "average_velocity_W",
+            "U_variance_Prime",
+            "V_variance_Prime",
+            "W_variance_Prime",
+            "U_stdev_Prime",
+            "V_stdev_Prime",
+            "W_stdev_Prime",
+            "Skewness_U_Prime",
+            "Skewness_V_Prime",
+            "Skewness_W_Prime",
+            "Kurtosis_U_Prime",
+            "Kurtosis_V_Prime",
+            "Kurtosis_W_Prime",
+            "Reynolds_stress_u'v'",
+            "Reynolds_stress_u'w'",
+            "Reynolds_stress_v'w'",
+            "Anisotropy",
+            "M30",
+            "M03",
+            "M12",
+            "M21",
+            "fku_2d",
+            "Fku_2d",
+            "fkw_2d",
+            "Fkw_2d",
+            "fku_3d",
+            "Fku_3d",
+            "fkw_3d",
+            "Fkw_3d",
+            "TKE_3d",
+            "Q1_K_Value",
+            "Q2_K_Value",
+            "Q3_K_Value",
+            "Q4_K_Value",
+            "e",
+            "ED",
+            "Octant_plus_1",
+            "Octant_minus_1",
+            "Octant_plus_2",
+            "Octant_minus_2",
+            "Octant_plus_3",
+            "Octant_minus_3",
+            "Octant_plus_4",
+            "Octant_minus_4",
+            "Total_Octant_sample",
+            "Probability_Octant_plus_1",
+            "Probability_Octant_minus_1",
+            "Probability_Octant_plus_2",
+            "Probability_Octant_minus_2",
+            "Probability_Octant_plus_3",
+            "Probability_Octant_minus_3",
+            "Probability_Octant_plus_4",
+            "Probability_Octant_minus_4",
+            "Min_Octant_Count",
+            "Min_Octant_Count_id",
+            "Max_Octant_Count",
+            "Max_Octant_Count_id",
+            "K",
+            "TI",
+        ]
+        f.write(",".join(str(i) for i in row))
+        f.write("\n")
 
 
 def useful_values_u():
@@ -206,28 +165,7 @@ def useful_values():
     data.at[0, "M30"] = round(data["u^u^u^"].mean(), 8)
     data.at[0, "M03"] = round(data["w^w^w^"].mean(), 8)
 
-    print(
-        "K=",
-        (
-            round(data["u'u'"].mean(), 8)
-            + round(data["v'v'"].mean(), 8)
-            + round(data["w'w'"].mean(), 8)
-        )
-        / 2,
-    )
-    print(
-        "TI=",
-        math.sqrt(
-            (
-                round(data["u'u'"].mean(), 8)
-                + round(data["v'v'"].mean(), 8)
-                + round(data["w'w'"].mean(), 8)
-            )
-            / 3
-        ),
-    )
-
-    data.at[0, "K"] = (
+    K = (
         round(data["u'u'"].mean(), 8)
         + round(data["v'v'"].mean(), 8)
         + round(data["w'w'"].mean(), 8)
@@ -240,9 +178,13 @@ def useful_values():
         )
         / 3
     )
+
+    data.at[0, "K"] = K
+    print("K =", K)
+
     TI = round(TI, 8)
-    print("TI = ", TI)
     data.at[0, "TI"] = TI
+    print("TI =", TI)
 
 
 def fk():
@@ -519,81 +461,89 @@ def find_mean():
 
 
 def store():
-    with open("OUTPUT_DIR/Results_Consolidated_v4.csv", mode="a") as file_:
-        file_.write(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(
-                "",
-                data.at[0, "U_mean"],
-                data.at[0, "V_mean"],
-                data.at[0, "W_mean"],
-                data.at[0, "Var_u'"],
-                data.at[0, "Var_v'"],
-                data.at[0, "Var_w'"],
-                data.at[0, "std_u'"],
-                data.at[0, "std_v'"],
-                data.at[0, "std_w'"],
-                data.at[0, "Skewness_u'"],
-                data.at[0, "Skewness_v'"],
-                data.at[0, "Skewness_w'"],
-                data.at[0, "Kurtosis_u'"],
-                data.at[0, "Kurtosis_v'"],
-                data.at[0, "Kurtosis_w'"],
-                data.at[0, "Reynolds_stress_u'v'"],
-                data.at[0, "Reynolds_stress_u'w'"],
-                data.at[0, "Reynolds_stress_v'w'"],
-                data.at[0, "anisotropy"],
-                data.at[0, "M30"],
-                data.at[0, "M03"],
-                data.at[0, "M12"],
-                data.at[0, "M21"],
-                data.at[0, "fku_2d"],
-                data.at[0, "Fku_2d"],
-                data.at[0, "fkw_2d"],
-                data.at[0, "Fkw_2d"],
-                data.at[index, "fku_3d"],
-                data.at[index, "Fku_3d"],
-                data.at[index, "fkw_3d"],
-                data.at[index, "Fkw_3d"],
-                data.at[index, "TKE_3D"],
-                data.at[0, "Q1_K_Value"],
-                data.at[0, "Q2_K_Value"],
-                data.at[0, "Q3_K_Value"],
-                data.at[0, "Q4_K_Value"],
-                0,
-                0,
-                data.at[0, "Octant_plus_1"],
-                data.at[0, "Octant_minus_1"],
-                data.at[0, "Octant_plus_2"],
-                data.at[0, "Octant_minus_2"],
-                data.at[0, "Octant_plus_3"],
-                data.at[0, "Octant_minus_3"],
-                data.at[0, "Octant_plus_4"],
-                data.at[0, "Octant_minus_4"],
-                data.at[0, "Total_Octant_sample"],
-                data.at[0, "Probability_Octant_plus_1"],
-                data.at[0, "Probability_Octant_minus_1"],
-                data.at[0, "Probability_Octant_plus_2"],
-                data.at[0, "Probability_Octant_minus_2"],
-                data.at[0, "Probability_Octant_plus_3"],
-                data.at[0, "Probability_Octant_minus_3"],
-                data.at[0, "Probability_Octant_plus_4"],
-                data.at[0, "Probability_Octant_minus_4"],
-                data.at[0, "Min_Octant_Count"],
-                data.at[0, "Min_Octant_Count_id"],
-                data.at[0, "Max_Octant_Count"],
-                data.at[0, "Max_Octant_Count_id"],
-                data.at[0, "K"],
-                data.at[0, "TI"],
-                "\n",
-            )
-        )
-        file_.write("\n")
+    with open(OUTPUT_PATH, mode="a") as f:
+        row = [
+            os.path.basename(os.path.realpath(FILE_PATH)),
+            data.at[0, "U_mean"],
+            data.at[0, "V_mean"],
+            data.at[0, "W_mean"],
+            data.at[0, "Var_u'"],
+            data.at[0, "Var_v'"],
+            data.at[0, "Var_w'"],
+            data.at[0, "std_u'"],
+            data.at[0, "std_v'"],
+            data.at[0, "std_w'"],
+            data.at[0, "Skewness_u'"],
+            data.at[0, "Skewness_v'"],
+            data.at[0, "Skewness_w'"],
+            data.at[0, "Kurtosis_u'"],
+            data.at[0, "Kurtosis_v'"],
+            data.at[0, "Kurtosis_w'"],
+            data.at[0, "Reynolds_stress_u'v'"],
+            data.at[0, "Reynolds_stress_u'w'"],
+            data.at[0, "Reynolds_stress_v'w'"],
+            data.at[0, "anisotropy"],
+            data.at[0, "M30"],
+            data.at[0, "M03"],
+            data.at[0, "M12"],
+            data.at[0, "M21"],
+            data.at[0, "fku_2d"],
+            data.at[0, "Fku_2d"],
+            data.at[0, "fkw_2d"],
+            data.at[0, "Fkw_2d"],
+            data.at[index, "fku_3d"],
+            data.at[index, "Fku_3d"],
+            data.at[index, "fkw_3d"],
+            data.at[index, "Fkw_3d"],
+            data.at[index, "TKE_3D"],
+            data.at[0, "Q1_K_Value"],
+            data.at[0, "Q2_K_Value"],
+            data.at[0, "Q3_K_Value"],
+            data.at[0, "Q4_K_Value"],
+            0,
+            0,
+            data.at[0, "Octant_plus_1"],
+            data.at[0, "Octant_minus_1"],
+            data.at[0, "Octant_plus_2"],
+            data.at[0, "Octant_minus_2"],
+            data.at[0, "Octant_plus_3"],
+            data.at[0, "Octant_minus_3"],
+            data.at[0, "Octant_plus_4"],
+            data.at[0, "Octant_minus_4"],
+            data.at[0, "Total_Octant_sample"],
+            data.at[0, "Probability_Octant_plus_1"],
+            data.at[0, "Probability_Octant_minus_1"],
+            data.at[0, "Probability_Octant_plus_2"],
+            data.at[0, "Probability_Octant_minus_2"],
+            data.at[0, "Probability_Octant_plus_3"],
+            data.at[0, "Probability_Octant_minus_3"],
+            data.at[0, "Probability_Octant_plus_4"],
+            data.at[0, "Probability_Octant_minus_4"],
+            data.at[0, "Min_Octant_Count"],
+            data.at[0, "Min_Octant_Count_id"],
+            data.at[0, "Max_Octant_Count"],
+            data.at[0, "Max_Octant_Count_id"],
+            data.at[0, "K"],
+            data.at[0, "TI"],
+        ]
+        f.write(",".join(str(i) for i in row))
+        f.write("\n")
 
 
-if __name__ == "__main__":
-    data = pd.read_csv(sys.argv[1])
+def compute_stats(file_path):
+    global FILE_PATH
+    FILE_PATH = file_path
+    global data
+    data = pd.read_csv(file_path)
+    global N
     N = len(data)
     find_mean()
     find_std()
     allfunction()
     store()
+
+    
+
+if __name__ == "__main__":
+    FILE_PATH = sys.argv[1]
+    compute_stats(FILE_PATH)

@@ -1,35 +1,44 @@
+import os
 from copy import deepcopy
 import csv
 import numpy as np
 from datetime import datetime
 from statistics import stdev
+from rich.console import Console
+from rich.table import Table
+from rich.prompt import IntPrompt, Confirm
+from rich import print as rprint
+from stats import compute_stats
 
 
-class DetectSpikes:
+class DetectReplaceSpikes:
     def __init__(
         self,
-        Data,
+        FILEPATH,
         CORR_THRESHOLD,
         SNR_THRESHOLD,
         VELOCITY_MULTIPLIER,
         CORR_COLS=[15, 16, 17],
         SNR_COLS=[11, 12, 13],
         VELOCITY_COLS=[3, 4, 5],
+        EXPORT_COLS=[0, 3, 4, 5],
+        HEADERS=["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
     ) -> None:
         self.CORR_THRESHOLD = CORR_THRESHOLD
         self.SNR_THRESHOLD = SNR_THRESHOLD
         self.VELOCITY_MULTIPLIER = VELOCITY_MULTIPLIER
-        self.Data = Data
+        self.DATA, self.BASE_FILE_NAME, self.DIRECTORY = read_file(FILEPATH)
+        self.working_data = None
         self.CORR_COLS = CORR_COLS
         self.SNR_COLS = SNR_COLS
         self.VELOCITY_COLS = VELOCITY_COLS
 
         self.STD_DEV = {}  # calculating stdev for velocity cols is enough for now
         for col in VELOCITY_COLS:
-            data = []
-            for row in self.Data:
-                data.append(row[col])
-            self.STD_DEV[col] = stdev(data)
+            tmp_col_data = []
+            for row in self.DATA:
+                tmp_col_data.append(row[col])
+            self.STD_DEV[col] = stdev(tmp_col_data)
 
         self.detection_methods = [
             self.minimum_CORR,
@@ -43,6 +52,47 @@ class DetectSpikes:
             self.velocity_threshold,
             self.abs_velocity_threshold,
         ]
+        self.DETECTION_LABELS = [
+            "Minimum SNR",
+            "Minimum Correlation",
+            "Average SNR",
+            "Average Correlation",
+            "Min Correlation & Min SNR",
+            "Min Correlation & Average SNR",
+            "Average Correlation & Min SNR",
+            "Average Correlation & Average SNR",
+            "Velocity Threshold",
+            "Absolute Velocity Threshold",
+        ]
+
+        # Calculating Column means for further use
+        COLUMN_COUNT = len(self.DATA[0])
+        self.COL_MEANS = [0] * COLUMN_COUNT
+        for i in range(COLUMN_COUNT):
+            AVG = 0
+            for row in self.DATA:
+                AVG += row[i]
+            AVG /= len(self.DATA)
+            self.COL_MEANS[i] = AVG
+        self.VELOCITY_COLS = VELOCITY_COLS
+
+        self.replacement_methods = [
+            [self.f1, "R1"],
+            [self.f2, "R2"],
+            [self.f3, "R3"],
+            [self.f4, "R4"],
+            [self.f5, "R5"],
+        ]
+        self.REPLACEMENT_LABELS = [
+            "extrapolation from the preceding data point",
+            "extrapolation from the two preceding points",
+            "the overall mean of the signal",
+            "a smoothed estimate",
+            "interpolation between the ends of the spike",
+        ]
+
+        self.EXPORT_COLS = EXPORT_COLS
+        self.HEADERS = HEADERS
 
     def check_threshold(self, row, cols, threshold):
         for col in cols:
@@ -72,7 +122,7 @@ class DetectSpikes:
                 spikes += 1
         return spikes >= 2
 
-    def detect_and_replace(self, conditions, replacement_method, filename):
+    def detect_and_replace(self, conditions, replacement_method, file_suffix):
         """
         conditions is a list of list of two objects:
         - function
@@ -82,7 +132,8 @@ class DetectSpikes:
         To summarize, we check AND of all conditions in 'conditions' list.
         """
         replaced_rows = 0
-        for i, row in enumerate(self.Data):
+        self.working_data = deepcopy(self.DATA)
+        for i, row in enumerate(self.working_data):
             all_True = True
             for condition in conditions:
                 if not condition[0](*([row] + condition[1])):
@@ -91,7 +142,10 @@ class DetectSpikes:
                 replaced_rows += 1
                 replacement_method[0](i)
         print(f"{replaced_rows} row(s) replaced.")
-        return filename + "_" + replacement_method[1]
+        file_suffix = file_suffix + "_" + replacement_method[1]
+        self.write_to_file(file_suffix)
+
+        self.working_data = None
 
     def minimum_CORR(self, replacement_method):
         return self.detect_and_replace(
@@ -175,99 +229,162 @@ class DetectSpikes:
             f"abs_v_threshold_{self.VELOCITY_MULTIPLIER}",
         )
 
-
-class ReplaceSpikes:
-    def __init__(
-        self,
-        Data,
-        RAW_COLS=[3, 4, 5],
-    ) -> None:
-        self.Data = Data
-
-        # Calculating Column means for further use
-        column_count = len(Data[0])
-        self.ColMeans = [0] * column_count
-        for i in range(column_count):
-            AVG = 0
-            for row in Data:
-                AVG += row[i]
-            AVG /= len(Data)
-            self.ColMeans[i] = AVG
-        self.RAW_COLS = RAW_COLS
-
-        self.replacement_methods = [
-            [self.f1, "R1"],
-            [self.f2, "R2"],
-            [self.f3, "R3"],
-            [self.f4, "R4"],
-            [self.f5, "R5"],
-        ]
-
     def f1(self, row_index):
-        for j in self.RAW_COLS:
+        for j in self.VELOCITY_COLS:
             try:
-                self.Data[row_index][j] = self.Data[row_index - 1][j]
+                self.working_data[row_index][j] = self.working_data[row_index - 1][j]
             except:
-                self.Data[row_index][j] = self.Data[row_index][j]
+                self.working_data[row_index][j] = self.working_data[row_index][j]
 
     def f2(self, row_index):
-        for j in self.RAW_COLS:
+        for j in self.VELOCITY_COLS:
             try:
-                self.Data[row_index][j] = (
-                    2 * self.Data[row_index - 1][j] - self.Data[row_index - 2][j]
+                self.working_data[row_index][j] = (
+                    2 * self.working_data[row_index - 1][j]
+                    - self.working_data[row_index - 2][j]
                 )
             except:
-                self.Data[row_index][j] = self.Data[row_index][j]
+                self.working_data[row_index][j] = self.working_data[row_index][j]
 
     def f3(self, row_index):
-        for j in self.RAW_COLS:
-            self.Data[row_index][j] = self.ColMeans[j]
+        for j in self.VELOCITY_COLS:
+            self.working_data[row_index][j] = self.COL_MEANS[j]
 
     def f4(self, row_index):
         # TODO
-        for j in self.RAW_COLS:
-            self.Data[row_index][j] = self.Data[row_index][j]
+        for j in self.VELOCITY_COLS:
+            self.working_data[row_index][j] = self.working_data[row_index][j]
 
     def f5(self, row_index):
-        for j in self.RAW_COLS:
+        for j in self.VELOCITY_COLS:
             try:
-                self.Data[row_index][j] = round(
-                    (self.Data[row_index - 1][j] + self.Data[row_index + 1][j]) / 2, 5
+                self.working_data[row_index][j] = round(
+                    (
+                        self.working_data[row_index - 1][j]
+                        + self.working_data[row_index + 1][j]
+                    )
+                    / 2,
+                    5,
                 )
             except IndexError:
-                self.Data[row_index][j] = self.Data[row_index][j]
+                self.working_data[row_index][j] = self.working_data[row_index][j]
+
+    def write_to_file(self, file_suffix):
+        DATE_SUFFIX = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        OUTPUT_FILE = os.path.join(
+            self.DIRECTORY, f"{self.BASE_FILE_NAME}_{file_suffix}_{DATE_SUFFIX}.csv"
+        )
+        with open(OUTPUT_FILE, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(self.HEADERS)  # header
+            for row in self.working_data:
+                row_data = []
+                for j in self.EXPORT_COLS:
+                    row_data.append(row[j] * 100)
+                writer.writerow(row_data)
+
+        print(f"written to {OUTPUT_FILE}")
+        if Confirm.ask("Compute statistics on this output file?", default=True):
+            compute_stats(OUTPUT_FILE)
+
+    def process_choices(self, detection_choice, replacement_choice):
+        DETECTIONS = len(self.detection_methods)
+        REPLACEMENTS = len(self.replacement_methods)
+        if detection_choice == DETECTIONS and replacement_choice == REPLACEMENTS:
+            for i in range(DETECTIONS):
+                for j in range(REPLACEMENTS):
+                    self.detection_methods[i](self.replacement_methods[j])
+        elif detection_choice == DETECTIONS and (
+            0 <= replacement_choice < REPLACEMENTS
+        ):
+            for i in range(DETECTIONS):
+                self.detection_methods[i](self.replacement_methods[replacement_choice])
+        elif (
+            0 <= detection_choice < DETECTIONS
+        ) and replacement_choice == REPLACEMENTS:
+            for j in range(REPLACEMENTS):
+                self.detection_methods[detection_choice](self.replacement_methods[j])
+        elif (0 <= detection_choice < DETECTIONS) and (
+            0 <= replacement_choice < REPLACEMENTS
+        ):
+            self.detection_methods[detection_choice](
+                self.replacement_methods[replacement_choice]
+            )
+        else:
+            print("Choose the input properly.")
 
 
-def write_to_file(
-    Data, COLS, filename, Headers=["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"]
-):
-    if filename[:-4] != ".csv":
-        filename += ".csv"
-    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + filename
-    filename = "OUTPUT_DIR/" + filename
-    with open(filename, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(Headers)  # header
-        for row in Data:
-            row_data = []
-            for j in COLS:
-                row_data.append(row[j] * 100)
-            writer.writerow(row_data)
-    print(f"written to {filename}")
+def read_file(filepath):
+    """
+    Reads a CSV file and returns following objects
+    - List of lists (floats)
+    - Base filename (used for writing)
+    - directory"""
+    DIRECTORY = os.path.dirname(os.path.realpath(filepath))
+    BASE_FILE_NAME = os.path.splitext(os.path.basename(os.path.realpath(filepath)))[0]
+    with open(filepath, "r") as f:
+        reader = csv.reader(f)
+        DATA = [row for row in reader]
+
+    DATA = DATA[1:]  # removing header
+    for i in range(len(DATA)):
+        for j in range(len(DATA[i])):
+            DATA[i][j] = float(DATA[i][j])
+    return DATA, BASE_FILE_NAME, DIRECTORY
+
+
+def get_user_input(DETECTION_LABELS, REPLACEMENT_LABELS):
+    """
+    Fetches user input and returns two integers
+    """
+    DETECTION_METHODS_COUNT = len(DETECTION_LABELS)
+    REPLACEMENT_METHODS_COUNT = len(REPLACEMENT_LABELS)
+    console = Console()
+
+    table = Table(title="Detection methods")
+    table.add_column("Method", justify="center", style="cyan")
+    table.add_column("Choice", justify="right", style="magenta")
+    for index, method in enumerate(DETECTION_LABELS):
+        table.add_row(method, str(index))
+    table.add_row("Run all methods", str(DETECTION_METHODS_COUNT))
+
+    console.print(table)
+    while True:
+        detection_choice = IntPrompt.ask(
+            f":rocket: Choose a method from above (between [b]0[/b] and [b]{DETECTION_METHODS_COUNT}[/b])",
+            default=0,
+        )
+        if 0 <= detection_choice <= DETECTION_METHODS_COUNT:
+            break
+        else:
+            rprint(
+                f":pile_of_poo: [prompt.invalid]Number must be between 0 and {DETECTION_METHODS_COUNT}"
+            )
+
+    table = Table(title="Replacement methods")
+    table.add_column("Method", justify="center", style="cyan")
+    table.add_column("Choice", justify="right", style="magenta")
+    for index, method in enumerate(REPLACEMENT_LABELS):
+        table.add_row(method, str(index))
+    table.add_row("Run all methods", str(REPLACEMENT_METHODS_COUNT))
+    console.print(table)
+
+    while True:
+        replacement_choice = IntPrompt.ask(
+            f":rocket: Choose a method from above (between [b]0[/b] and [b]{REPLACEMENT_METHODS_COUNT}[/b])",
+            default=0,
+        )
+        if 0 <= replacement_choice <= REPLACEMENT_METHODS_COUNT:
+            break
+        else:
+            rprint(
+                f":pile_of_poo: [prompt.invalid]Number must be between 0 and {REPLACEMENT_METHODS_COUNT}"
+            )
+    return detection_choice, replacement_choice
 
 
 def main():
     INPUT_FILE = "2.9_cm20140611204525_Full_Raw_file_Orig.csv"
-    BASE_FILE_NAME = INPUT_FILE[:-4]
-    with open(INPUT_FILE, "r") as f:
-        reader = csv.reader(f)
-        Data = [row for row in reader]
-
-    print(Data[:5])
-    Data = Data[1:]
-    for i in range(len(Data)):
-        for j in range(len(Data[i])):
-            Data[i][j] = float(Data[i][j])
 
     SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
@@ -275,128 +392,23 @@ def main():
     CORR_COLS = [15, 16, 17]
     SNR_COLS = [11, 12, 13]
     RAW_COLS = [3, 4, 5]
-
-    print(
-        """
-        Choose your choice:
-
-        0) Minimum SNR
-        1) Minimum Correlation
-        2) Average SNR
-        3) Average Correlation
-        4) Min Correlation & Min SNR
-        5) Min Correlation & Average SNR
-        6) Average Correlation & Min SNR
-        7) Average Correlation & Average SNR
-        8) Velocity Threshold
-        9) Absolute Velocity Threshold
-        10) All of the above
-
-        Choose (0) to (10):
-        """
+    EXPORT_COLS = [0, 3, 4, 5]
+    OUTPUT_HEADERS = ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"]
+    model = DetectReplaceSpikes(
+        INPUT_FILE,
+        CORR_THRESHOLD,
+        SNR_THRESHOLD,
+        VELOCITY_MULTIPLIER,
+        CORR_COLS,
+        SNR_COLS,
+        RAW_COLS,
+        EXPORT_COLS,
+        OUTPUT_HEADERS,
     )
-    detection_choice = int(input())
-    if detection_choice < 0 or detection_choice > 10:
-        return
-    print(
-        """
-        Choose your choice:
-
-        0) extrapolation from the preceding data point
-        1) extrapolation from the two preceding points
-        2) the overall mean of the signal
-        3) a smoothed estimate
-        4) interpolation between the ends of the spike
-        5) All of the above
-
-        Choose (0) to (5):
-        """
+    detection_choice, replacement_choice = get_user_input(
+        model.DETECTION_LABELS, model.REPLACEMENT_LABELS
     )
-    replacement_choice = int(input())
-    if replacement_choice < 0 or replacement_choice > 5:
-        return
-
-    if detection_choice == 10 and replacement_choice == 5:
-        for i in range(10):
-            for j in range(5):
-                new_data = deepcopy(Data)
-                detection = DetectSpikes(
-                    new_data,
-                    CORR_THRESHOLD,
-                    SNR_THRESHOLD,
-                    VELOCITY_MULTIPLIER,
-                    CORR_COLS,
-                    SNR_COLS,
-                )
-                replacement = ReplaceSpikes(new_data, RAW_COLS)
-                filename = detection.detection_methods[i](
-                    replacement.replacement_methods[j]
-                )
-                write_to_file(
-                    new_data,
-                    [0] + RAW_COLS,
-                    BASE_FILE_NAME + "_" + filename,
-                    ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
-                )
-        return
-    elif detection_choice == 10:
-        for i in range(10):
-            new_data = deepcopy(Data)
-            detection = DetectSpikes(
-                new_data,
-                CORR_THRESHOLD,
-                SNR_THRESHOLD,
-                VELOCITY_MULTIPLIER,
-                CORR_COLS,
-                SNR_COLS,
-            )
-            replacement = ReplaceSpikes(new_data, RAW_COLS)
-            filename = detection.detection_methods[i](
-                replacement.replacement_methods[replacement_choice]
-            )
-            write_to_file(
-                new_data,
-                [0] + RAW_COLS,
-                BASE_FILE_NAME + "_" + filename,
-                ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
-            )
-        return
-    elif replacement_choice == 5:
-        for j in range(5):
-            new_data = deepcopy(Data)
-            detection = DetectSpikes(
-                new_data,
-                CORR_THRESHOLD,
-                SNR_THRESHOLD,
-                VELOCITY_MULTIPLIER,
-                CORR_COLS,
-                SNR_COLS,
-            )
-            replacement = ReplaceSpikes(new_data, RAW_COLS)
-            filename = detection.detection_methods[detection_choice](
-                replacement.replacement_methods[j]
-            )
-            write_to_file(
-                new_data,
-                [0] + RAW_COLS,
-                BASE_FILE_NAME + "_" + filename,
-                ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
-            )
-        return
-
-    detection = DetectSpikes(
-        Data, CORR_THRESHOLD, SNR_THRESHOLD, VELOCITY_MULTIPLIER, CORR_COLS, SNR_COLS
-    )
-    replacement = ReplaceSpikes(Data, RAW_COLS)
-    filename = detection.detection_methods[detection_choice](
-        replacement.replacement_methods[replacement_choice]
-    )
-    write_to_file(
-        Data,
-        [0] + RAW_COLS,
-        BASE_FILE_NAME + "_" + filename,
-        ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
-    )
+    model.process_choices(detection_choice, replacement_choice)
 
 
 if __name__ == "__main__":
