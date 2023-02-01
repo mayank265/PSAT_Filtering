@@ -1,4 +1,0 @@
-1. Looping Based Velocity (will explain)
-2. HDR Depth (will explain)
-3. Todo (multiple runs of the same filter). Just noting
-4. Update corr and Snr also when updating u, V, w(will explain)
