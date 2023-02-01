@@ -284,8 +284,10 @@ class DetectReplaceSpikes:
                 writer.writerow(row_data)
 
         print(f"written to {OUTPUT_FILE}")
-        if Confirm.ask("Compute statistics on this output file?", default=True):
-            compute_stats(OUTPUT_FILE)
+        # if Confirm.ask("Compute statistics on this output file?", default=True):
+            # compute_stats(OUTPUT_FILE)
+        # Force Compute Stats 
+        compute_stats(OUTPUT_FILE) 
 
     def process_choices(self, detection_choice, replacement_choice):
         DETECTIONS = len(self.detection_methods)
