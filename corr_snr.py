@@ -6,7 +6,7 @@ from datetime import datetime
 from statistics import stdev
 from rich.console import Console
 from rich.table import Table
-from rich.prompt import IntPrompt, Confirm
+from rich.prompt import IntPrompt, FloatPrompt, Confirm
 from rich import print as rprint
 from stats import compute_stats
 
@@ -17,7 +17,6 @@ class DetectReplaceSpikes:
         FILEPATH,
         CORR_THRESHOLD,
         SNR_THRESHOLD,
-        VELOCITY_MULTIPLIER,
         CORR_COLS=[15, 16, 17],
         SNR_COLS=[11, 12, 13],
         VELOCITY_COLS=[3, 4, 5],
@@ -26,7 +25,7 @@ class DetectReplaceSpikes:
     ) -> None:
         self.CORR_THRESHOLD = CORR_THRESHOLD
         self.SNR_THRESHOLD = SNR_THRESHOLD
-        self.VELOCITY_MULTIPLIER = VELOCITY_MULTIPLIER
+        self.FILEPATH = FILEPATH
         self.DATA, self.BASE_FILE_NAME, self.DIRECTORY = read_file(FILEPATH)
         self.working_data = None
         self.CORR_COLS = CORR_COLS
@@ -122,7 +121,9 @@ class DetectReplaceSpikes:
                 spikes += 1
         return spikes >= 2
 
-    def detect_and_replace(self, conditions, replacement_method, file_suffix):
+    def detect_and_replace(
+        self, conditions, replacement_method, file_suffix, print_stats=False
+    ):
         """
         conditions is a list of list of two objects:
         - function
@@ -143,7 +144,7 @@ class DetectReplaceSpikes:
                 replacement_method[0](i)
         print(f"{replaced_rows} row(s) replaced.")
         file_suffix = file_suffix + "_" + replacement_method[1]
-        self.write_to_file(file_suffix)
+        self.write_to_file(file_suffix, print_stats)
 
         self.working_data = None
 
@@ -215,19 +216,65 @@ class DetectReplaceSpikes:
             f"avg_CORR_{self.CORR_THRESHOLD}_avg_SNR_{self.SNR_THRESHOLD}",
         )
 
+    def print_stats(self, filepath=None, current_stats=None):
+        console = Console()
+        self.table = Table(title="Current stats")
+        self.table.add_column("Method", justify="center", style="cyan")
+        self.table.add_column("U", justify="right")
+        self.table.add_column("V", justify="right")
+        self.table.add_column("W", justify="right")
+        if current_stats is None:
+            current_stats = compute_stats(filepath)
+        for row in current_stats[:3]:
+            self.table.add_row(*[str(i) for i in row])
+        console.print(self.table)
+
+        self.table = Table(title="Reynolds stress")
+        for header in current_stats[4][0]:
+            self.table.add_column(header, justify="right")
+        self.table.add_row(*[str(i) for i in current_stats[4][1:]])
+        console.print(self.table)
+
     def velocity_threshold(self, replacement_method):
-        return self.detect_and_replace(
-            [[self.check_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
-            replacement_method,
-            f"v_threshold_{self.VELOCITY_MULTIPLIER}",
-        )
+        self.print_stats(self.FILEPATH)
+        run_count = 1
+        while True:
+            self.VELOCITY_MULTIPLIER = FloatPrompt.ask(
+                f":rocket: Velocity Threshold K",
+                default=0,
+            )
+
+            self.detect_and_replace(
+                [[self.check_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+                replacement_method,
+                f"v_threshold_{self.VELOCITY_MULTIPLIER}_Run{run_count}",
+                True,
+            )
+            if not Confirm.ask("Run Velocity Threshold detection method again?"):
+                break
+            run_count += 1
 
     def abs_velocity_threshold(self, replacement_method):
-        return self.detect_and_replace(
-            [[self.check_abs_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
-            replacement_method,
-            f"abs_v_threshold_{self.VELOCITY_MULTIPLIER}",
-        )
+        self.print_stats(self.FILEPATH)
+        run_count = 1
+        while True:
+            self.VELOCITY_MULTIPLIER = FloatPrompt.ask(
+                f":rocket: Velocity Threshold K",
+                default=0,
+            )
+
+            self.detect_and_replace(
+                [[self.check_abs_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+                replacement_method,
+                f"abs_v_threshold_{self.VELOCITY_MULTIPLIER}_Run{run_count}",
+                True,
+            )
+
+            if not Confirm.ask(
+                "Run Absolute Velocity Threshold detection method again?"
+            ):
+                break
+            run_count += 1
 
     def f1(self, row_index):
         for j in self.VELOCITY_COLS:
@@ -269,7 +316,7 @@ class DetectReplaceSpikes:
             except IndexError:
                 self.working_data[row_index][j] = self.working_data[row_index][j]
 
-    def write_to_file(self, file_suffix):
+    def write_to_file(self, file_suffix, print_stats=False):
         DATE_SUFFIX = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         OUTPUT_FILE = os.path.join(
             self.DIRECTORY, f"{self.BASE_FILE_NAME}_{file_suffix}_{DATE_SUFFIX}.csv"
@@ -284,10 +331,10 @@ class DetectReplaceSpikes:
                 writer.writerow(row_data)
 
         print(f"written to {OUTPUT_FILE}")
-        # if Confirm.ask("Compute statistics on this output file?", default=True):
-            # compute_stats(OUTPUT_FILE)
-        # Force Compute Stats 
-        compute_stats(OUTPUT_FILE) 
+        # Force Compute Stats
+        current_stats = compute_stats(OUTPUT_FILE)
+        if print_stats:
+            self.print_stats(None, current_stats)
 
     def process_choices(self, detection_choice, replacement_choice):
         DETECTIONS = len(self.detection_methods)
@@ -390,7 +437,6 @@ def main():
 
     SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
-    VELOCITY_MULTIPLIER = 1.5
     CORR_COLS = [15, 16, 17]
     SNR_COLS = [11, 12, 13]
     RAW_COLS = [3, 4, 5]
@@ -400,7 +446,6 @@ def main():
         INPUT_FILE,
         CORR_THRESHOLD,
         SNR_THRESHOLD,
-        VELOCITY_MULTIPLIER,
         CORR_COLS,
         SNR_COLS,
         RAW_COLS,

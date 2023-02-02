@@ -530,19 +530,51 @@ def store():
         f.write("\n")
 
 
-def compute_stats(file_path):
+def compute_stats(file_path, write_to_file=True):
     global FILE_PATH
     FILE_PATH = file_path
     global data
     data = pd.read_csv(file_path)
+    if ("RAW_U" in data.columns) and ("RAW_V" in data.columns) and ("RAW_W" in data.columns):
+        # to be compatible with raw file
+        data.rename(
+            columns={
+                "RAW_U": "FILTERED_U",
+                "RAW_V": "FILTERED_V",
+                "RAW_W": "FILTERED_W",
+            },
+            inplace=True,
+        )
     global N
     N = len(data)
     find_mean()
     find_std()
     allfunction()
-    store()
+    if write_to_file:
+        store()
+    return [
+        ["Mean", data.at[0, "U_mean"], data.at[0, "V_mean"], data.at[0, "W_mean"]],
+        ["Variance", data.at[0, "Var_u'"], data.at[0, "Var_v'"], data.at[0, "Var_w'"]],
+        [
+            "Skewness",
+            data.at[0, "Skewness_u'"],
+            data.at[0, "Skewness_v'"],
+            data.at[0, "Skewness_w'"],
+        ],
+        [
+            "Kurtosis",
+            data.at[0, "Kurtosis_u'"],
+            data.at[0, "Kurtosis_v'"],
+            data.at[0, "Kurtosis_w'"],
+        ],
+        [
+            ["U'V'", "U'W'", "V'W'"],
+            data.at[0, "Reynolds_stress_u'v'"],
+            data.at[0, "Reynolds_stress_u'w'"],
+            data.at[0, "Reynolds_stress_v'w'"],
+        ],
+    ]
 
-    
 
 if __name__ == "__main__":
     FILE_PATH = sys.argv[1]
