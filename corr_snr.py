@@ -321,7 +321,7 @@ class DetectReplaceSpikes:
         OUTPUT_FILE = os.path.join(
             self.DIRECTORY, f"{self.BASE_FILE_NAME}_{file_suffix}_{DATE_SUFFIX}.csv"
         )
-        with open(OUTPUT_FILE, "w") as f:
+        with open(OUTPUT_FILE, "w", newline='') as f:
             writer = csv.writer(f)
             writer.writerow(self.HEADERS)  # header
             for row in self.working_data:

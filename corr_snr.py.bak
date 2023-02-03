@@ -225,7 +225,7 @@ class DetectReplaceSpikes:
         self.table.add_column("W", justify="right")
         if current_stats is None:
             current_stats = compute_stats(filepath)
-        for row in current_stats[:3]:
+        for row in current_stats[:4]:
             self.table.add_row(*[str(i) for i in row])
         console.print(self.table)
 
