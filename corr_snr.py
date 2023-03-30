@@ -1,7 +1,9 @@
 import os
+from glob import glob
 from copy import deepcopy
 import csv
 import numpy as np
+import json
 from datetime import datetime
 from statistics import stdev
 from rich.console import Console
@@ -9,6 +11,7 @@ from rich.table import Table
 from rich.prompt import IntPrompt, FloatPrompt, Confirm
 from rich import print as rprint
 from stats import compute_stats
+import argparse
 
 
 class DetectReplaceSpikes:
@@ -22,6 +25,7 @@ class DetectReplaceSpikes:
         VELOCITY_COLS=[3, 4, 5],
         EXPORT_COLS=[0, 3, 4, 5],
         HEADERS=["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
+        VELOCITY_MULTIPLIER=2,
     ) -> None:
         self.CORR_THRESHOLD = CORR_THRESHOLD
         self.SNR_THRESHOLD = SNR_THRESHOLD
@@ -31,6 +35,7 @@ class DetectReplaceSpikes:
         self.CORR_COLS = CORR_COLS
         self.SNR_COLS = SNR_COLS
         self.VELOCITY_COLS = VELOCITY_COLS
+        self.VELOCITY_MULTIPLIER = VELOCITY_MULTIPLIER
 
         self.STD_DEV = {}  # calculating stdev for velocity cols is enough for now
         for col in VELOCITY_COLS:
@@ -148,35 +153,35 @@ class DetectReplaceSpikes:
 
         self.working_data = None
 
-    def minimum_CORR(self, replacement_method):
+    def minimum_CORR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [[self.check_threshold, [self.CORR_COLS, self.CORR_THRESHOLD]]],
             replacement_method,
             f"min_CORR_{self.CORR_THRESHOLD}",
         )
 
-    def average_CORR(self, replacement_method):
+    def average_CORR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [[self.check_average, [self.CORR_COLS, self.CORR_THRESHOLD]]],
             replacement_method,
             f"avg_CORR_{self.CORR_THRESHOLD}",
         )
 
-    def minimum_SNR(self, replacement_method):
+    def minimum_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [[self.check_threshold, [self.SNR_COLS, self.SNR_THRESHOLD]]],
             replacement_method,
             f"min_SNR_{self.SNR_THRESHOLD}",
         )
 
-    def average_SNR(self, replacement_method):
+    def average_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [[self.check_average, [self.SNR_COLS, self.SNR_THRESHOLD]]],
             replacement_method,
             f"avg_SNR_{self.SNR_THRESHOLD}",
         )
 
-    def min_CORR_min_SNR(self, replacement_method):
+    def min_CORR_min_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [
                 [self.check_threshold, [self.CORR_COLS, self.CORR_THRESHOLD]],
@@ -186,7 +191,7 @@ class DetectReplaceSpikes:
             f"min_CORR_{self.CORR_THRESHOLD}_min_SNR_{self.SNR_THRESHOLD}",
         )
 
-    def min_CORR_avg_SNR(self, replacement_method):
+    def min_CORR_avg_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [
                 [self.check_threshold, [self.CORR_COLS, self.CORR_THRESHOLD]],
@@ -196,7 +201,7 @@ class DetectReplaceSpikes:
             f"min_CORR_{self.CORR_THRESHOLD}_avg_SNR_{self.SNR_THRESHOLD}",
         )
 
-    def avg_CORR_min_SNR(self, replacement_method):
+    def avg_CORR_min_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [
                 [self.check_average, [self.CORR_COLS, self.CORR_THRESHOLD]],
@@ -206,7 +211,7 @@ class DetectReplaceSpikes:
             f"avg_CORR_{self.CORR_THRESHOLD}_min_SNR_{self.SNR_THRESHOLD}",
         )
 
-    def avg_CORR_avg_SNR(self, replacement_method):
+    def avg_CORR_avg_SNR(self, replacement_method, *args, **kwargs):
         return self.detect_and_replace(
             [
                 [self.check_average, [self.CORR_COLS, self.CORR_THRESHOLD]],
@@ -235,8 +240,17 @@ class DetectReplaceSpikes:
         self.table.add_row(*[str(i) for i in current_stats[4][1:]])
         console.print(self.table)
 
-    def velocity_threshold(self, replacement_method):
+    def velocity_threshold(self, replacement_method, *args, **kwargs):
         self.print_stats(self.FILEPATH)
+        if "max_runs" in kwargs:
+            for i in range(kwargs["max_runs"]):
+                self.detect_and_replace(
+                    [[self.check_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+                    replacement_method,
+                    f"v_threshold_{self.VELOCITY_MULTIPLIER}_Run{i + 1}",
+                    True,
+                )
+            return
         run_count = 1
         while True:
             self.VELOCITY_MULTIPLIER = FloatPrompt.ask(
@@ -254,8 +268,17 @@ class DetectReplaceSpikes:
                 break
             run_count += 1
 
-    def abs_velocity_threshold(self, replacement_method):
+    def abs_velocity_threshold(self, replacement_method, *args, **kwargs):
         self.print_stats(self.FILEPATH)
+        if "max_runs" in kwargs:
+            for i in range(kwargs["max_runs"]):
+                self.detect_and_replace(
+                    [[self.check_abs_velocity_threshold, [self.VELOCITY_MULTIPLIER]]],
+                    replacement_method,
+                    f"abs_v_threshold_{self.VELOCITY_MULTIPLIER}_Run{i + 1}",
+                    True,
+                )
+            return
         run_count = 1
         while True:
             self.VELOCITY_MULTIPLIER = FloatPrompt.ask(
@@ -318,8 +341,9 @@ class DetectReplaceSpikes:
 
     def write_to_file(self, file_suffix, print_stats=False):
         DATE_SUFFIX = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        OUTPUT_DIR = "OUTPUT_DIR"
         OUTPUT_FILE = os.path.join(
-            self.DIRECTORY, f"{self.BASE_FILE_NAME}_{file_suffix}_{DATE_SUFFIX}.csv"
+            OUTPUT_DIR, f"{self.BASE_FILE_NAME}_{file_suffix}_{DATE_SUFFIX}.csv"
         )
         with open(OUTPUT_FILE, "w", newline='') as f:
             writer = csv.writer(f)
@@ -336,28 +360,34 @@ class DetectReplaceSpikes:
         if print_stats:
             self.print_stats(None, current_stats)
 
-    def process_choices(self, detection_choice, replacement_choice):
+    def process_choices(self, detection_choice, replacement_choice, *args, **kwargs):
         DETECTIONS = len(self.detection_methods)
         REPLACEMENTS = len(self.replacement_methods)
         if detection_choice == DETECTIONS and replacement_choice == REPLACEMENTS:
             for i in range(DETECTIONS):
                 for j in range(REPLACEMENTS):
-                    self.detection_methods[i](self.replacement_methods[j])
+                    self.detection_methods[i](
+                        self.replacement_methods[j], *args, **kwargs
+                    )
         elif detection_choice == DETECTIONS and (
             0 <= replacement_choice < REPLACEMENTS
         ):
             for i in range(DETECTIONS):
-                self.detection_methods[i](self.replacement_methods[replacement_choice])
+                self.detection_methods[i](
+                    self.replacement_methods[replacement_choice], *args, **kwargs
+                )
         elif (
             0 <= detection_choice < DETECTIONS
         ) and replacement_choice == REPLACEMENTS:
             for j in range(REPLACEMENTS):
-                self.detection_methods[detection_choice](self.replacement_methods[j])
+                self.detection_methods[detection_choice](
+                    self.replacement_methods[j], *args, **kwargs
+                )
         elif (0 <= detection_choice < DETECTIONS) and (
             0 <= replacement_choice < REPLACEMENTS
         ):
             self.detection_methods[detection_choice](
-                self.replacement_methods[replacement_choice]
+                self.replacement_methods[replacement_choice], *args, **kwargs
             )
         else:
             print("Choose the input properly.")
@@ -435,8 +465,8 @@ def get_user_input(DETECTION_LABELS, REPLACEMENT_LABELS):
 def main():
     INPUT_FILE = "2.9_cm20140611204525_Full_Raw_file_Orig.csv"
 
-    SNR_THRESHOLD = 20
     CORR_THRESHOLD = 70
+    SNR_THRESHOLD = 20
     CORR_COLS = [15, 16, 17]
     SNR_COLS = [11, 12, 13]
     RAW_COLS = [3, 4, 5]
@@ -458,5 +488,41 @@ def main():
     model.process_choices(detection_choice, replacement_choice)
 
 
+parser = argparse.ArgumentParser(
+    description="Tool to detect spikes in river based on speeds"
+)
+parser.add_argument(
+    "--config",
+    type=argparse.FileType("r", encoding="UTF-8"),
+    help="If not supplied, default config is used",
+)
+parser.add_argument(
+    "--input",
+    nargs="+",
+    help="Supply the input files to process (glob syntax supported)",
+)
 if __name__ == "__main__":
-    main()
+    args = parser.parse_args()
+    config = json.load(args.config)
+    args.config.close()
+    input_files = []
+    for entry in args.input:
+        input_files.extend(glob(entry))
+    print("input_files = ", input_files)
+    for input_file in input_files:
+        model = DetectReplaceSpikes(
+            input_file,
+            config["CORR_THRESHOLD"],
+            config["SNR_THRESHOLD"],
+            config["CORR_COLS"],
+            config["SNR_COLS"],
+            config["RAW_COLS"],
+            config["EXPORT_COLS"],
+            config["OUTPUT_HEADERS"],
+            config["VELOCITY_MULTIPLIER"],
+        )
+        model.process_choices(
+            config["detection_choice"],
+            config["replacement_choice"],
+            max_runs=config["max_runs"],
+        )

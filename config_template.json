@@ -1,0 +1,13 @@
+{
+  "CORR_THRESHOLD": 70,
+  "SNR_THRESHOLD": 20,
+  "CORR_COLS": [15, 16, 17],
+  "SNR_COLS": [11, 12, 13],
+  "RAW_COLS": [3, 4, 5],
+  "EXPORT_COLS": [0, 3, 4, 5],
+  "OUTPUT_HEADERS": ["TIME", "FILTERED_U", "FILTERED_V", "FILTERED_W"],
+  "VELOCITY_MULTIPLIER": 2,
+  "detection_choice": 8,
+  "replacement_choice": 0,
+  "max_runs": 3
+}
